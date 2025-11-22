@@ -327,7 +327,7 @@ impl<R: Rng + Send + Sync + Clone> Render3D<R> {
     /// 高光幂次.
     const SPECULAR_POW: f32 = 99.;
     /// 焦平面大小 (米).
-    const FOCAL_SIZE: f32 = 0.5;
+    const FOCAL_SIZE: f32 = 1.5; // todo 看看调整这个什么效果.
     /// 抗锯齿采样次数.
     const AA_SAMPLES: usize = 10;
 
@@ -399,11 +399,11 @@ impl<R: Rng + Send + Sync + Clone> Render3D<R> {
             let pitch =
                 (current_pitch + delta_pitch).clamp(-80f32.to_radians(), 80f32.to_radians()); // 限制角度防止万向轴问题.
             // 弧度转方向向量
-            self.camera_gaze = dbg!(Vec3::new(
+            self.camera_gaze = Vec3::new(
                 yaw.cos() * pitch.cos(),
                 yaw.sin() * pitch.cos(),
                 pitch.sin(),
-            ));
+            );
         }
 
         // 计算相机坐标偏移.
@@ -529,7 +529,10 @@ impl<R: Rng + Send + Sync + Clone> Render3D<R> {
                         .iter()
                         .map(|l| {
                             let to_light_direction = l.pos - intersect_point;
-                            normal.dot(to_light_direction).powf(Self::SPECULAR_POW) * l.strength
+                            reflect_direction
+                                .dot(to_light_direction)
+                                .powf(Self::SPECULAR_POW)
+                                * l.strength
                         })
                         .sum::<f32>()
                         .clamp(0.0, 1.0)
@@ -537,7 +540,8 @@ impl<R: Rng + Send + Sync + Clone> Render3D<R> {
                     0.
                 };
                 Vec3::new(specular, specular, specular)
-                    + self.radiance(intersect_point, reflect_direction)
+                    // + normal * 0.01 防止又检测到此球体.
+                    + self.radiance(intersect_point + normal * 0.01, reflect_direction)
                         * (1.0 - Self::REFLECTION_DECAY)
             }
             IntersectKind::Sky => unreachable!(),
@@ -610,8 +614,8 @@ impl<R: Rng + Send + Sync + Clone> Render3D<R> {
 }
 
 fn main() {
-    const HEIGHT: usize = 256;
-    const WIDTH: usize = 256;
+    const HEIGHT: usize = 300;
+    const WIDTH: usize = 300;
     let title = "Render 3D - Ray Tracing";
     let mut window = Window::new(
         title,
@@ -639,3 +643,9 @@ fn main() {
             .unwrap();
     }
 }
+
+// todo: 显示方向不对.
+// todo: 移动方向不对.
+// todo: 转向方向不对.
+// todo: 远处地板莫名变黑.
+// todo: 球体上反光异常(雪花).
