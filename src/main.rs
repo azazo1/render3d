@@ -628,7 +628,7 @@ fn main() {
         },
     )
     .unwrap();
-    window.set_target_fps(4);
+    window.set_target_fps(60); // 60 帧也会消耗很多的 cpu, 需要使用 release profile 才有较好的帧率.
 
     let mut fps_counter = FpsCounter::new(Duration::from_secs(1));
     let mut renderer = Render3D::new(HEIGHT, WIDTH, rand::rngs::SmallRng::seed_from_u64(42));
