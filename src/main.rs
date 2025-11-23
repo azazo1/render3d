@@ -154,8 +154,8 @@ impl Vec3 {
 
     const ZERO: Vec3 = Vec3::new(0., 0., 0.);
     const X: Vec3 = Vec3::new(1., 0., 0.);
-    const Z: Vec3 = Vec3::new(0., 1., 0.);
-    const Y: Vec3 = Vec3::new(0., 0., 1.);
+    const Y: Vec3 = Vec3::new(0., 1., 0.);
+    const Z: Vec3 = Vec3::new(0., 0., 1.);
 
     /// 是否是零向量.
     #[inline]
@@ -313,7 +313,7 @@ impl<R: Rng + Send + Sync + Clone> Render3D<R> {
     /// 相机移动速度 (米/s).
     const CAMERA_SPEED: f32 = 1.0;
     /// 相机转向速度 (rad/s).
-    const CAMERA_ROTATION_SPEED: f32 = 30f32.to_radians();
+    const CAMERA_ROTATION_SPEED: f32 = 5f32.to_radians();
     /// 天空颜色.
     const SKY_COLOR: Vec3 = Vec3::new(0.7, 0.6, 1.0);
     /// 地面颜色 1.
@@ -329,7 +329,7 @@ impl<R: Rng + Send + Sync + Clone> Render3D<R> {
     /// 焦平面大小 (米).
     const FOCAL_SIZE: f32 = 1.5; // todo 看看调整这个什么效果.
     /// 抗锯齿采样次数.
-    const AA_SAMPLES: usize = 10;
+    const AA_SAMPLES: usize = 5;
 
     fn new(width: usize, height: usize, rng: R) -> Self {
         Self {
@@ -380,10 +380,10 @@ impl<R: Rng + Send + Sync + Clone> Render3D<R> {
             delta_angle = delta_angle + Vec3::Y;
         }
         if window.is_key_down(minifb::Key::H) {
-            delta_angle = delta_angle + Vec3::X; // 左转是增大 yaw (在右手坐标系中)
+            delta_angle = delta_angle - Vec3::X;
         }
         if window.is_key_down(minifb::Key::L) {
-            delta_angle = delta_angle - Vec3::X;
+            delta_angle = delta_angle + Vec3::X; // 右转是增大 yaw (在右手坐标系中) ?
         }
         if !delta_angle.is_zero() {
             let horizontal_gaze = Vec3::new(self.camera_gaze.x, self.camera_gaze.y, 0.);
@@ -394,6 +394,7 @@ impl<R: Rng + Send + Sync + Clone> Render3D<R> {
                 y: delta_pitch,
                 z: _,
             } = delta_angle.normalize() * Self::CAMERA_ROTATION_SPEED;
+
             // 两个弧度
             let yaw = (current_yaw + delta_yaw).rem(2.0 * f32::consts::PI);
             let pitch =
@@ -420,7 +421,7 @@ impl<R: Rng + Send + Sync + Clone> Render3D<R> {
         if window.is_key_down(minifb::Key::A) {
             direction = direction - right_direction;
         }
-        if window.is_key_down(minifb::Key::S) {
+        if window.is_key_down(minifb::Key::D) {
             direction = direction + right_direction;
         }
         if window.is_key_down(minifb::Key::Space) {
