@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WASM Render 3D - Ray Tracing</title>
+</head>
+<script type="module">
+    import init, { add } from './pkg/render3d.js';
+    (async () => {
+        console.log("Loading wasm...");
+        await init();
+        console.log(await add(1, 2));
+    })();
+</script>
+
+<body>
+
+</body>
+
+</html>

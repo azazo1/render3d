@@ -10,6 +10,7 @@ use crate::ray_tracing::vector::Vec3;
 pub mod action;
 pub mod fps;
 pub mod vector;
+pub mod wasm;
 
 #[inline]
 #[must_use]
