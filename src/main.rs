@@ -254,15 +254,16 @@ impl Sphere {
         let frac_descriminant_4 = b * b - c;
         if frac_descriminant_4 > 0.0 {
             let mut distance = -b - frac_descriminant_4.sqrt();
+            let intersect_point = direction * distance + origin;
+            let mut normal = (intersect_point - self.center).normalize();
             if distance < 0.0 {
                 // 从球体内部射出的光线, 上面计算的距离可能是负数.
                 distance = -b + frac_descriminant_4.sqrt();
                 if distance < 0.0 {
                     return None;
                 }
+                normal = -normal; // 法向量向内.
             }
-            let intersect_point = direction * distance + origin;
-            let normal = (intersect_point - self.center).normalize();
             let intersect = Intersect {
                 distance,
                 intersect_point: Some(intersect_point),
@@ -325,11 +326,13 @@ impl<R: Rng + Send + Sync + Clone> Render3D<R> {
     /// 反射的亮度损耗.
     const REFLECTION_DECAY: f32 = 0.4;
     /// 高光幂次.
-    const SPECULAR_POW: f32 = 99.;
+    const SPECULAR_POW: f32 = 80.;
     /// 焦平面大小 (米).
-    const FOCAL_SIZE: f32 = 1.5; // todo 看看调整这个什么效果.
+    const FOCAL_SIZE: f32 = 2.5; // todo 看看调整这个什么效果.
     /// 抗锯齿采样次数.
     const AA_SAMPLES: usize = 5;
+    /// 最大的反射次数.
+    const MAX_REFLECTION: u32 = 3;
 
     fn new(width: usize, height: usize, rng: R) -> Self {
         Self {
@@ -479,7 +482,7 @@ impl<R: Rng + Send + Sync + Clone> Render3D<R> {
     }
 
     /// 着色, 返回颜色 rgb (0.0 ~ 1.0).
-    fn radiance(&self, origin: Vec3, direction: Vec3) -> Vec3 {
+    fn radiance(&self, origin: Vec3, direction: Vec3, reflection_count: u32) -> Vec3 {
         let intersect = self.intersect(origin, direction);
         if intersect.kind == IntersectKind::Sky {
             return Self::SKY_COLOR * (1.0 - direction.z.abs()).powf(4.0);
@@ -529,7 +532,7 @@ impl<R: Rng + Send + Sync + Clone> Render3D<R> {
                     self.lights
                         .iter()
                         .map(|l| {
-                            let to_light_direction = l.pos - intersect_point;
+                            let to_light_direction = (l.pos - intersect_point).normalize();
                             reflect_direction
                                 .dot(to_light_direction)
                                 .powf(Self::SPECULAR_POW)
@@ -541,9 +544,16 @@ impl<R: Rng + Send + Sync + Clone> Render3D<R> {
                     0.
                 };
                 Vec3::new(specular, specular, specular)
-                    // + normal * 0.01 防止又检测到此球体.
-                    + self.radiance(intersect_point + normal * 0.01, reflect_direction)
-                        * (1.0 - Self::REFLECTION_DECAY)
+                    + if reflection_count <= Self::MAX_REFLECTION {
+                        // + normal * 0.01 防止又检测到此球体.
+                        self.radiance(
+                            intersect_point + normal * 0.01,
+                            reflect_direction,
+                            reflection_count + 1,
+                        ) * (1.0 - Self::REFLECTION_DECAY)
+                    } else {
+                        Vec3::ZERO
+                    }
             }
             IntersectKind::Sky => unreachable!(),
         }
@@ -589,7 +599,7 @@ impl<R: Rng + Send + Sync + Clone> Render3D<R> {
                                             + rng.random_range(-interval_y..interval_y));
                                 let direction = direction.normalize();
                                 pixel_color = pixel_color
-                                    + self.radiance(self.camera_pos + dof_src, direction);
+                                    + self.radiance(self.camera_pos + dof_src, direction, 0);
                             }
                             pixel_color = pixel_color / Self::AA_SAMPLES as f32;
                             rgbf(pixel_color.x, pixel_color.y, pixel_color.z)
@@ -599,18 +609,6 @@ impl<R: Rng + Send + Sync + Clone> Render3D<R> {
             )
             .flatten()
             .collect();
-
-        // todo!(
-        //     "
-        //     - 处理键位, 移动摄像机, 转动视角
-        //     - 处理光线和球体的碰撞
-        //     - 为每个像素进行光线追踪
-        //     - 抗锯齿
-        //     - 景深效果
-        //     - 反射, 漫反射
-        //     - 曝光补偿
-        //     "
-        // );
     }
 }
 
@@ -634,8 +632,11 @@ fn main() {
 
     let mut fps_counter = FpsCounter::new(Duration::from_secs(1));
     let mut renderer = Render3D::new(HEIGHT, WIDTH, rand::rngs::SmallRng::seed_from_u64(42));
-    renderer.put_sphere(Sphere::new(Vec3::new(10., 0., 0.), 3.));
+    for x in (0..10).step_by(3) {
+        renderer.put_sphere(Sphere::new(Vec3::new(x as f32, 0., 1.), 1.));
+    }
     renderer.put_light(Light::new(Vec3::new(5., 5., 3.), 1.));
+    renderer.put_light(Light::new(Vec3::new(5., -5., 3.), 1.0));
     while window.is_open() && !window.is_key_down(minifb::Key::Escape) {
         window.set_title(&format!("{title}, fps: {:.2}", fps_counter.tick()));
         renderer.render(&window);
@@ -644,9 +645,3 @@ fn main() {
             .unwrap();
     }
 }
-
-// todo: 显示方向不对.
-// todo: 移动方向不对.
-// todo: 转向方向不对.
-// todo: 远处地板莫名变黑.
-// todo: 球体上反光异常(雪花).
