@@ -2,7 +2,9 @@ use std::time::Duration;
 
 use minifb::{Key, Window, WindowOptions};
 use rand::SeedableRng;
-use render3d::{Light, RayTracing, Sphere, action::Action, fps::FpsCounter, vector::Vec3};
+use render3d::ray_tracing::{
+    Light, RayTracing, Sphere, action::Action, fps::FpsCounter, vector::Vec3,
+};
 
 fn key_map(key: Key) -> Option<Action> {
     match key {
