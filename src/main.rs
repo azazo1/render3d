@@ -314,7 +314,7 @@ impl<R: Rng + Send + Sync + Clone> Render3D<R> {
     /// 相机移动速度 (米/s).
     const CAMERA_SPEED: f32 = 1.0;
     /// 相机转向速度 (rad/s).
-    const CAMERA_ROTATION_SPEED: f32 = 5f32.to_radians();
+    const CAMERA_ROTATION_SPEED: f32 = 30f32.to_radians();
     /// 天空颜色.
     const SKY_COLOR: Vec3 = Vec3::new(0.7, 0.6, 1.0);
     /// 地面颜色 1.
@@ -328,7 +328,11 @@ impl<R: Rng + Send + Sync + Clone> Render3D<R> {
     /// 高光幂次.
     const SPECULAR_POW: f32 = 80.;
     /// 焦平面大小 (米).
-    const FOCAL_SIZE: f32 = 2.5; // todo 看看调整这个什么效果.
+    ///
+    /// 焦平面的一半长度和 gaze 长度组成直角三角形两边,
+    /// 这个直角三角形以 gaze 边为轴进行对称, 得到的二倍角就是视场角:
+    /// `tan(FOV / 2) = FOCAL_SIZE / camera_gaze.magnitude()`
+    const FOCAL_SIZE: f32 = 2.5;
     /// 抗锯齿采样次数.
     const AA_SAMPLES: usize = 5;
     /// 最大的反射次数.
@@ -396,7 +400,7 @@ impl<R: Rng + Send + Sync + Clone> Render3D<R> {
                 x: delta_yaw,
                 y: delta_pitch,
                 z: _,
-            } = delta_angle.normalize() * Self::CAMERA_ROTATION_SPEED;
+            } = delta_angle.normalize() * Self::CAMERA_ROTATION_SPEED * delta_time;
 
             // 两个弧度
             let yaw = (current_yaw + delta_yaw).rem(2.0 * f32::consts::PI);
@@ -628,7 +632,7 @@ fn main() {
         },
     )
     .unwrap();
-    window.set_target_fps(60); // 60 帧也会消耗很多的 cpu, 需要使用 release profile 才有较好的帧率.
+    window.set_target_fps(30); // 60 帧会消耗很多的 cpu, 需要使用 release profile 才有较好的帧率.
 
     let mut fps_counter = FpsCounter::new(Duration::from_secs(1));
     let mut renderer = Render3D::new(HEIGHT, WIDTH, rand::rngs::SmallRng::seed_from_u64(42));
