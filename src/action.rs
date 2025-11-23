@@ -24,7 +24,7 @@ pub(crate) struct ActionManager {
 impl ActionManager {
     pub(crate) fn new() -> Self {
         Self {
-            actions: Default::default(),
+            actions: HashSet::new(),
         }
     }
 
@@ -32,6 +32,7 @@ impl ActionManager {
         self.actions.insert(action);
     }
 
+    #[allow(dead_code)]
     pub(crate) fn withdraw(&mut self, action: Action) {
         self.actions.remove(&action);
     }

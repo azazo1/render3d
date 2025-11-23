@@ -33,7 +33,7 @@ pub enum IntersectKind {
 #[derive(Debug, Clone)]
 pub struct Intersect {
     distance: f32,
-    intersect_point: Option<Vec3>,
+    hit_point: Option<Vec3>,
     normal: Option<Vec3>,
     kind: IntersectKind,
 }
@@ -47,11 +47,13 @@ pub struct Sphere {
 }
 
 impl Sphere {
+    #[must_use]
     pub fn new(center: Vec3, radius: f32) -> Self {
         Self { center, radius }
     }
 
     /// 球体和从某个点射出的光线求交. 起点在球面内上外估计都能正常计算.
+    #[must_use]
     pub fn intersect(self, origin: Vec3, direction: Vec3) -> Option<Intersect> {
         let v = origin - self.center;
         let b = direction.dot(v);
@@ -71,7 +73,7 @@ impl Sphere {
             }
             let intersect = Intersect {
                 distance,
-                intersect_point: Some(intersect_point),
+                hit_point: Some(intersect_point),
                 normal: Some(normal),
                 kind: IntersectKind::Sphere,
             };
@@ -92,6 +94,7 @@ pub struct Light {
 }
 
 impl Light {
+    #[must_use]
     pub fn new(pos: Vec3, strength: f32) -> Self {
         Self { pos, strength }
     }
@@ -140,7 +143,7 @@ impl<R: Rng + Send + Sync + Clone> RayTracing<R> {
     /// `tan(FOV / 2) = FOCAL_SIZE / camera_gaze.magnitude()`
     const FOCAL_SIZE: f32 = 2.5;
     /// 抗锯齿采样次数.
-    const AA_SAMPLES: usize = 5;
+    const AA_SAMPLES: u16 = 5;
     /// 最大的反射次数.
     const MAX_REFLECTION: u32 = 3;
 
@@ -178,10 +181,7 @@ impl<R: Rng + Send + Sync + Clone> RayTracing<R> {
 
     fn handle_actions(&mut self) {
         debug_assert!(self.camera_gaze.is_normalized());
-        let delta_time = self
-            .delta_time()
-            .map(|x| x.as_secs_f32())
-            .unwrap_or(f32::EPSILON);
+        let delta_time = self.delta_time().map_or(f32::EPSILON, |x| x.as_secs_f32());
 
         // 计算相机转向.
         // yaw 表示和正 x 轴在 xy 平面内的夹角, 就像普通的数学角度一样.
@@ -252,7 +252,7 @@ impl<R: Rng + Send + Sync + Clone> RayTracing<R> {
     fn intersect(&self, origin: Vec3, direction: Vec3) -> Intersect {
         let mut min_distance_intersect = Intersect {
             distance: f32::INFINITY,
-            intersect_point: None,
+            hit_point: None,
             normal: None,
             kind: IntersectKind::Sky,
         };
@@ -263,7 +263,7 @@ impl<R: Rng + Send + Sync + Clone> RayTracing<R> {
             min_distance_intersect = Intersect {
                 distance: t,
                 normal: Some(Vec3::Z),
-                intersect_point: Some(origin + direction * t),
+                hit_point: Some(origin + direction * t),
                 kind: IntersectKind::Ground,
             };
         }
@@ -297,7 +297,7 @@ impl<R: Rng + Send + Sync + Clone> RayTracing<R> {
         if intersect.kind == IntersectKind::Sky {
             return Self::SKY_COLOR * (1.0 - direction.z.abs()).powf(4.0);
         }
-        let intersect_point = intersect.intersect_point.unwrap();
+        let intersect_point = intersect.hit_point.unwrap();
         let normal = intersect.normal.unwrap();
 
         // 计算各个点光源产生的兰伯特漫反射系数平均数.
@@ -324,8 +324,8 @@ impl<R: Rng + Send + Sync + Clone> RayTracing<R> {
             IntersectKind::Ground => {
                 // 根据格子坐标选择颜色.
                 let Vec3 { x, y, z: _ } = intersect_point;
-                let ground_color = if ((x / Self::GROUND_GRID_SIZE) as i32
-                    + (y / Self::GROUND_GRID_SIZE) as i32)
+                let ground_color = if ((x / Self::GROUND_GRID_SIZE).floor() as i32
+                    + (y / Self::GROUND_GRID_SIZE).floor() as i32)
                     % 2
                     == 0
                 {
@@ -412,7 +412,7 @@ impl<R: Rng + Send + Sync + Clone> RayTracing<R> {
                                 pixel_color = pixel_color
                                     + self.radiance(self.camera_pos + dof_src, direction, 0);
                             }
-                            pixel_color = pixel_color / Self::AA_SAMPLES as f32;
+                            pixel_color = pixel_color / Self::AA_SAMPLES.into();
                             rgbf(pixel_color.x, pixel_color.y, pixel_color.z)
                         })
                         .collect::<Vec<_>>()

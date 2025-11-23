@@ -1,4 +1,4 @@
-use std::{f32, time::Duration};
+use std::time::Duration;
 
 use minifb::{Key, Window, WindowOptions};
 use rand::SeedableRng;
@@ -40,8 +40,8 @@ fn main() {
 
     let mut fps_counter = FpsCounter::new(Duration::from_secs(1));
     let mut renderer = RayTracing::new(HEIGHT, WIDTH, rand::rngs::SmallRng::seed_from_u64(42));
-    for x in (0..10).step_by(3) {
-        renderer.put_sphere(Sphere::new(Vec3::new(x as f32, 0., 1.), 1.));
+    for x in (0..10u8).step_by(3) {
+        renderer.put_sphere(Sphere::new(Vec3::new(x.into(), 0., 1.), 1.));
     }
     renderer.put_light(Light::new(Vec3::new(5., 5., 3.), 1.));
     renderer.put_light(Light::new(Vec3::new(5., -5., 3.), 1.0));
