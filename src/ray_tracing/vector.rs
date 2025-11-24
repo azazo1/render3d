@@ -1,6 +1,9 @@
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
+use wasm_bindgen::prelude::wasm_bindgen;
+
 /// 右手坐标系, z 轴向上.
+#[wasm_bindgen]
 #[derive(Debug, Clone, Copy)]
 pub struct Vec3 {
     pub x: f32,
@@ -85,36 +88,40 @@ impl From<(f32, f32, f32)> for Vec3 {
 
 impl Vec3 {
     const TOLERANCE: f32 = 1e-6;
+    pub const ZERO: Vec3 = Vec3::new_const(0., 0., 0.);
+    pub const X: Vec3 = Vec3::new_const(1., 0., 0.);
+    pub const Y: Vec3 = Vec3::new_const(0., 1., 0.);
+    pub const Z: Vec3 = Vec3::new_const(0., 0., 1.);
 
     #[inline]
     #[must_use]
-    pub const fn new(x: f32, y: f32, z: f32) -> Self {
+    pub const fn new_const(x: f32, y: f32, z: f32) -> Self {
+        Self { x, y, z }
+    }
+}
+
+#[wasm_bindgen]
+impl Vec3 {
+    #[must_use]
+    pub fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
     }
 
-    pub const ZERO: Vec3 = Vec3::new(0., 0., 0.);
-    pub const X: Vec3 = Vec3::new(1., 0., 0.);
-    pub const Y: Vec3 = Vec3::new(0., 1., 0.);
-    pub const Z: Vec3 = Vec3::new(0., 0., 1.);
-
     /// 是否是零向量.
-    #[inline]
     #[must_use]
-    pub const fn is_zero(self) -> bool {
+    pub fn is_zero(self) -> bool {
         self.x.abs().max(self.y.abs()).max(self.z.abs()) < Self::TOLERANCE
     }
 
     /// 向量点乘
-    #[inline]
     #[must_use]
-    pub const fn dot(self, rhs: Self) -> f32 {
+    pub fn dot(self, rhs: Self) -> f32 {
         self.x * rhs.x + self.y * rhs.y + self.z * rhs.z
     }
 
     /// 向量叉乘
-    #[inline]
     #[must_use]
-    pub const fn cross(self, rhs: Self) -> Self {
+    pub fn cross(self, rhs: Self) -> Self {
         Self {
             x: self.y * rhs.z - self.z * rhs.y,
             y: self.z * rhs.x - self.x * rhs.z,
@@ -123,21 +130,18 @@ impl Vec3 {
     }
 
     /// 获取向量的模长
-    #[inline]
     #[must_use]
     pub fn magnitude(self) -> f32 {
         (self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
     }
 
     /// 是否是标准化的向量.
-    #[inline]
     #[must_use]
     pub fn is_normalized(self) -> bool {
         self.magnitude().sub(1.0).abs() < Self::TOLERANCE
     }
 
     /// 标准化, 不做非 0 模长的保证.
-    #[inline]
     #[must_use]
     pub fn normalize(self) -> Self {
         let mag = self.magnitude();
@@ -149,7 +153,6 @@ impl Vec3 {
     }
 
     /// 计算两个向量之间的余弦相似度.
-    #[inline]
     #[must_use]
     pub fn cos(self, rhs: Self) -> f32 {
         let self_mag = self.magnitude();

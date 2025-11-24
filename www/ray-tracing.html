@@ -7,16 +7,116 @@
     <title>WASM Render 3D - Ray Tracing</title>
 </head>
 <script type="module">
-    import init, { add } from './pkg/render3d.js';
+    import init, { RayTracing, Light, Sphere, Vec3, Action } from './pkg/render3d.js';
+
+    const HEIGHT = 200;
+    const WIDTH = 200;
+    const canvas = document.getElementById("rayTracingCanvas");
+    const ctx = canvas.getContext('2d');
+    canvas.width = WIDTH;
+    canvas.height = HEIGHT;
+    let rt = null;
+
+    async function redraw() {
+        let frame = rt.render_to_web_color();
+        ctx.putImageData(new ImageData(new Uint8ClampedArray(frame.buffer, frame.byteOffset, frame.byteLength), WIDTH, HEIGHT), 0, 0);
+        requestAnimationFrame(redraw);
+    }
+
+    function mapKey(code) {
+        let action = null;
+
+        switch (code) {
+            // --- 移动 (wasd) ---
+            case 'w':
+            case 'W':
+                action = Action.CameraMoveForward;
+                break;
+            case 's':
+            case 'S':
+                action = Action.CameraMoveBackward;
+                break;
+            case 'a':
+            case 'A':
+                action = Action.CameraMoveLeft;
+                break;
+            case 'd':
+            case 'D':
+                action = Action.CameraMoveRight;
+                break;
+
+            // --- 上下移动 (Space & LeftCtrl) ---
+            case ' ': // Space 上升
+                action = Action.CameraMoveUp;
+                break;
+            case 'Control': // LeftCtrl 下降
+            case 'ControlLeft':
+            case 'ControlRight':
+                action = Action.CameraMoveDown;
+                break;
+
+            // --- 转向 (hjkl - vim-like) ---
+            case 'h': // 左转 (水平逆时针)
+            case 'H':
+                action = Action.CameraRotationCCW;
+                break;
+            case 'l': // 右转 (水平顺时针)
+            case 'L':
+                action = Action.CameraRotationCW;
+                break;
+            case 'k': // 抬头 (向上转)
+            case 'K':
+                action = Action.CameraRotationUp;
+                break;
+            case 'j': // 低头 (向下转)
+            case 'J':
+                action = Action.CameraRotationDown;
+                break;
+
+            default:
+                // 其他按键不做处理
+                break;
+        }
+        return action;
+    }
+
+    function onKeyDown(evt) {
+        let action = mapKey(evt.key);
+        if (action !== null && rt !== null) {
+            evt.preventDefault();
+            rt.trigger_action(action);
+        }
+    }
+
+    function onKeyUp(evt) {
+        let action = mapKey(evt.key);
+        if (action !== null && rt !== null) {
+            evt.preventDefault();
+            rt.withdraw_action(action);
+        }
+    }
+
     (async () => {
         console.log("Loading wasm...");
         await init();
-        console.log(await add(1, 2));
+        rt = RayTracing.new(WIDTH, HEIGHT, 42);
+        rt.set_withdraw_actions_on_render(false);
+        rt.move_camera_to(Vec3.new(0, 0, 3));
+        rt.rotate_camera_to(Vec3.new(1, 0, -2));
+        for (var i = 0; i < 3; ++i) {
+            rt.put_sphere(Sphere.new(Vec3.new(i, 0, 1), 1));
+        }
+        rt.put_light(Light.new(Vec3.new(0, 5, 4), 1));
+        rt.put_light(Light.new(Vec3.new(0, -5, 4), 0.5));
+        document.addEventListener("keydown", onKeyDown)
+        document.addEventListener("keyup", onKeyUp)
+        redraw();
     })();
 </script>
 
 <body>
-
+    <h1>Render 3D - Ray Tracing</h1>
+    <canvas id="rayTracingCanvas"></canvas>
 </body>
 
 </html>

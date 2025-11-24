@@ -1,5 +1,7 @@
 use std::collections::HashSet;
+use wasm_bindgen::prelude::wasm_bindgen;
 
+#[wasm_bindgen]
 #[derive(Debug, Eq, PartialEq, Hash, Clone, Copy)]
 pub enum Action {
     CameraMoveForward,
@@ -14,6 +16,8 @@ pub enum Action {
     CameraRotationCCW,
     CameraRotationUp,
     CameraRotationDown,
+    /// 请求进行渲染, 尽管画面没变化.
+    RequestRender,
 }
 
 #[derive(Debug)]
@@ -32,7 +36,6 @@ impl ActionManager {
         self.actions.insert(action);
     }
 
-    #[allow(dead_code)]
     pub(crate) fn withdraw(&mut self, action: Action) {
         self.actions.remove(&action);
     }
@@ -43,5 +46,9 @@ impl ActionManager {
 
     pub(crate) fn clear(&mut self) {
         self.actions.clear();
+    }
+
+    pub(crate) fn has_actions(&self) -> bool {
+        !self.actions.is_empty()
     }
 }

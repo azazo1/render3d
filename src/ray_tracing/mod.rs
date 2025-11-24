@@ -1,21 +1,28 @@
-use rand::Rng;
+use rand::rngs::SmallRng;
+use rand::{Rng, SeedableRng};
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use std::f32;
 use std::ops::{Div, Rem};
-use std::time::{Duration, Instant};
+use std::panic;
+use std::time::Duration;
+use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::ray_tracing::action::ActionManager;
 use crate::ray_tracing::vector::Vec3;
+use crate::time::Instant;
 
 pub mod action;
-pub mod fps;
 pub mod vector;
-pub mod wasm;
+
+#[wasm_bindgen(start)]
+fn main() {
+    panic::set_hook(Box::new(console_error_panic_hook::hook));
+}
 
 #[inline]
 #[must_use]
 pub const fn rgb(r: u8, g: u8, b: u8) -> u32 {
-    ((r as u32) << 16) + ((g as u32) << 8) + b as u32
+    0xFF000000 | ((r as u32) << 16) + ((g as u32) << 8) + b as u32
 }
 
 #[inline]
@@ -24,6 +31,20 @@ pub const fn rgbf(r: f32, g: f32, b: f32) -> u32 {
     rgb((r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8)
 }
 
+/// 输入为 0xAARRGGBB, 输出为 [0xRR, 0xGG, 0xBB, 0xAA]
+#[cfg(target_arch = "wasm32")]
+#[inline]
+#[must_use]
+const fn to_web_color(color: u32) -> [u8; 4] {
+    [
+        (color >> 16) as u8,
+        (color >> 8) as u8,
+        (color & 0xff) as u8,
+        (color >> 24) as u8,
+    ]
+}
+
+#[wasm_bindgen]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IntersectKind {
     Sky,
@@ -31,6 +52,7 @@ pub enum IntersectKind {
     Sphere,
 }
 
+#[wasm_bindgen]
 #[derive(Debug, Clone)]
 pub struct Intersect {
     distance: f32,
@@ -40,6 +62,7 @@ pub struct Intersect {
 }
 
 /// 会镜面反射的球体.
+#[wasm_bindgen]
 #[derive(Debug, Clone, Copy)]
 pub struct Sphere {
     center: Vec3,
@@ -47,6 +70,7 @@ pub struct Sphere {
     radius: f32,
 }
 
+#[wasm_bindgen]
 impl Sphere {
     #[must_use]
     pub fn new(center: Vec3, radius: f32) -> Self {
@@ -86,6 +110,7 @@ impl Sphere {
 }
 
 /// 点光源.
+#[wasm_bindgen]
 #[derive(Debug, Clone)]
 pub struct Light {
     /// 光源位置.
@@ -94,6 +119,7 @@ pub struct Light {
     strength: f32,
 }
 
+#[wasm_bindgen]
 impl Light {
     #[must_use]
     pub fn new(pos: Vec3, strength: f32) -> Self {
@@ -102,8 +128,9 @@ impl Light {
 }
 
 /// 渲染一个 3D 场景(光线追踪), 地面为 z = 0.
+#[wasm_bindgen]
 #[derive(Debug)]
-pub struct RayTracing<R: Rng + Send + Sync + Clone> {
+pub struct RayTracing {
     width: usize,
     height: usize,
     last_frame_time: Option<Instant>,
@@ -117,20 +144,21 @@ pub struct RayTracing<R: Rng + Send + Sync + Clone> {
     lights: Vec<Light>,
     /// 按键管理器.
     am: ActionManager,
-    rng: R,
+    rng: SmallRng,
+    withdraw_actions_on_render: bool,
 }
 
-impl<R: Rng + Send + Sync + Clone> RayTracing<R> {
+impl RayTracing {
     /// 相机移动速度 (米/s).
     const CAMERA_SPEED: f32 = 1.0;
     /// 相机转向速度 (rad/s).
     const CAMERA_ROTATION_SPEED: f32 = 30f32.to_radians();
     /// 天空颜色.
-    const SKY_COLOR: Vec3 = Vec3::new(0.7, 0.6, 1.0);
+    const SKY_COLOR: Vec3 = Vec3::new_const(0.7, 0.6, 1.0);
     /// 地面颜色 1.
-    const GROUND_COLOR_1: Vec3 = Vec3::new(0.9, 0.1, 0.1);
+    const GROUND_COLOR_1: Vec3 = Vec3::new_const(0.9, 0.1, 0.1);
     /// 地面颜色 2.
-    const GROUND_COLOR_2: Vec3 = Vec3::new(0.9, 0.9, 0.9);
+    const GROUND_COLOR_2: Vec3 = Vec3::new_const(0.9, 0.9, 0.9);
     /// 地面颜色格子大小 (米).
     const GROUND_GRID_SIZE: f32 = 0.3;
     /// 反射的亮度损耗.
@@ -147,37 +175,61 @@ impl<R: Rng + Send + Sync + Clone> RayTracing<R> {
     const AA_SAMPLES: u16 = 5;
     /// 最大的反射次数.
     const MAX_REFLECTION: u32 = 3;
+}
 
-    pub fn new(width: usize, height: usize, rng: R) -> Self {
-        Self {
+#[wasm_bindgen]
+impl RayTracing {
+    /// 第一帧绘制 (render) 的时候会返回 `Some(...)`.
+    pub fn new(width: usize, height: usize, seed: u32) -> Self {
+        let mut self_ = Self {
             width,
             height,
             last_frame_time: None,
-            camera_pos: Vec3::new(0., 0., 3.),
-            camera_gaze: Vec3::new(1., 0., -1.).normalize(),
+            camera_pos: Vec3::new(0., 0., 0.),
+            camera_gaze: Vec3::new(1., 0., 0.).normalize(),
             spheres: Vec::new(),
             lights: Vec::new(),
             am: ActionManager::new(),
-            rng,
-        }
+            rng: SmallRng::seed_from_u64(seed as u64),
+            withdraw_actions_on_render: true,
+        };
+        self_.trigger_action(action::Action::RequestRender);
+        self_
     }
 
     fn delta_time(&self) -> Option<Duration> {
         self.last_frame_time.map(|x| x.elapsed())
     }
 
-    pub fn put_sphere(&mut self, sphere: Sphere) -> &mut Self {
+    pub fn put_sphere(&mut self, sphere: Sphere) {
         self.spheres.push(sphere);
-        self
     }
 
-    pub fn put_light(&mut self, light: Light) -> &mut Self {
+    pub fn put_light(&mut self, light: Light) {
         self.lights.push(light);
-        self
     }
 
-    pub fn press_key(&mut self, action: action::Action) {
+    pub fn move_camera_to(&mut self, pos: Vec3) {
+        self.camera_pos = pos;
+    }
+
+    pub fn rotate_camera_to(&mut self, gaze: Vec3) {
+        self.camera_gaze = gaze.normalize();
+    }
+
+    /// 在此处传入 [`RequestRender`](action::Action::RequestRender) 来让强制绘制一帧.
+    ///
+    /// 触发的 action 在 render 之后就会被清空, 如果不想清空, 那么 `set_withdraw_actions_on_render(false)`.
+    pub fn trigger_action(&mut self, action: action::Action) {
         self.am.trigger(action);
+    }
+
+    pub fn withdraw_action(&mut self, action: action::Action) {
+        self.am.withdraw(action);
+    }
+
+    pub fn set_withdraw_actions_on_render(&mut self, value: bool) {
+        self.withdraw_actions_on_render = value;
     }
 
     fn handle_actions(&mut self) {
@@ -370,9 +422,17 @@ impl<R: Rng + Send + Sync + Clone> RayTracing<R> {
         }
     }
 
-    pub fn render(&mut self) -> Vec<u32> {
+    /// 渲染画面, 当没有任何操作 ([`Action`](action::Action)) 的时候, 画面没变, 返回 None.
+    pub fn render(&mut self) -> Option<Vec<u32>> {
+        if !self.am.has_actions() {
+            // 没操作, 那么场景没有变化, 不渲染.
+            self.last_frame_time = Some(Instant::now()); // 假装渲染了一帧便于后面的时间计算.
+            return None;
+        }
         self.handle_actions();
-        self.am.clear();
+        if self.withdraw_actions_on_render {
+            self.am.clear();
+        }
         self.last_frame_time = Some(Instant::now());
         // todo 判断这个叉积的方向是否正确.
         let right = Vec3::Z.cross(self.camera_gaze).normalize();
@@ -384,42 +444,50 @@ impl<R: Rng + Send + Sync + Clone> RayTracing<R> {
         let interval_x = 0.5 / self.width as f32;
         let interval_y = 0.5 / self.height as f32;
 
-        (0..self.height * self.width)
-            .into_par_iter()
-            .chunks(1000)
-            .map_init(
-                || self.rng.clone(),
-                |rng, chunk| {
-                    chunk
-                        .into_iter()
-                        .map(|i| {
-                            let x = i % self.width;
-                            let y = i / self.width;
-                            let rx = x as f32 / self.width as f32;
-                            let ry = y as f32 / self.height as f32;
-                            let mut pixel_color = Vec3::ZERO;
-                            for _ in 0..Self::AA_SAMPLES {
-                                // todo 不知道这个景深随机值取什么范围比较好.
-                                let dof_src = right * rng.random_range(0.0..0.001)
-                                    + down * rng.random_range(0.0..0.001);
-                                let direction = top_left - dof_src
-                                    + right
-                                        * (rx * Self::FOCAL_SIZE
-                                            + rng.random_range(-interval_x..interval_x))
-                                    + down
-                                        * (ry * Self::FOCAL_SIZE
-                                            + rng.random_range(-interval_y..interval_y));
-                                let direction = direction.normalize();
-                                pixel_color = pixel_color
-                                    + self.radiance(self.camera_pos + dof_src, direction, 0);
-                            }
-                            pixel_color = pixel_color / Self::AA_SAMPLES.into();
-                            rgbf(pixel_color.x, pixel_color.y, pixel_color.z)
-                        })
-                        .collect::<Vec<_>>()
-                },
-            )
-            .flatten()
-            .collect()
+        Some(
+            (0..self.height * self.width)
+                .into_par_iter()
+                .chunks(1000)
+                .map_init(
+                    || self.rng.clone(),
+                    |rng, chunk| {
+                        chunk
+                            .into_iter()
+                            .map(|i| {
+                                let x = i % self.width;
+                                let y = i / self.width;
+                                let rx = x as f32 / self.width as f32;
+                                let ry = y as f32 / self.height as f32;
+                                let mut pixel_color = Vec3::ZERO;
+                                for _ in 0..Self::AA_SAMPLES {
+                                    // todo 不知道这个景深随机值取什么范围比较好.
+                                    let dof_src = right * rng.random_range(0.0..0.001)
+                                        + down * rng.random_range(0.0..0.001);
+                                    let direction = top_left - dof_src
+                                        + right
+                                            * (rx * Self::FOCAL_SIZE
+                                                + rng.random_range(-interval_x..interval_x))
+                                        + down
+                                            * (ry * Self::FOCAL_SIZE
+                                                + rng.random_range(-interval_y..interval_y));
+                                    let direction = direction.normalize();
+                                    pixel_color = pixel_color
+                                        + self.radiance(self.camera_pos + dof_src, direction, 0);
+                                }
+                                pixel_color = pixel_color / Self::AA_SAMPLES.into();
+                                rgbf(pixel_color.x, pixel_color.y, pixel_color.z)
+                            })
+                            .collect::<Vec<_>>()
+                    },
+                )
+                .flatten()
+                .collect(),
+        )
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn render_to_web_color(&mut self) -> Option<Vec<u8>> {
+        // todo 找一个零拷贝传递给 js 的方法.
+        Some(self.render()?.into_iter().flat_map(to_web_color).collect())
     }
 }
