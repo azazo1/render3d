@@ -13,6 +13,7 @@ name = "render3d"
 [dependencies]
 axum = {version = "0.8.7", optional = true}
 clap = {version = "4.5.53", optional = true, features = ["derive"]}
+console_error_panic_hook = "0.1.7"
 futures = "0.3.31"
 getrandom = {version = "0.3.4", features = ["wasm_js"]}
 mime_guess = "2.0.5"
@@ -35,4 +36,11 @@ path = "src/bin/wasm_server.rs"
 required-features = ["wasm_server"]
 
 [features]
-wasm_server = ["axum", "tokio", "clap", "tracing", "tracing-subscriber", "tokio-util"]
+wasm_server = [
+  "dep:axum",
+  "dep:tokio",
+  "dep:clap",
+  "dep:tracing",
+  "dep:tracing-subscriber",
+  "dep:tokio-util",
+]
