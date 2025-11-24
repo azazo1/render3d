@@ -2,6 +2,32 @@
 
 使用 rust 手撕一个简单的光线追踪 3D 渲染场景.
 
+## 运行
+
+### wasm+browser
+
+此项目可以使用 wasm 在浏览器中运行.
+
+需要准备 rust 环境, 安装 `wasm-pack`, `just` 工具.
+
+然后运行:
+
+```shell
+just wasm_server
+```
+
+然后在浏览器打开网址: `http://127.0.0.1:8000`.
+
+### desktop
+
+需要准备 rust 环境, 运行:
+
+```shell
+cargo run --bin ray_tracing
+```
+
+## 参考代码
+
 参考学习代码(Andrew Kensler):
 
 ```cpp
