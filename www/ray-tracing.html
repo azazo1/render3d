@@ -5,118 +5,226 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WASM Render 3D - Ray Tracing</title>
+
+    <style>
+        /* 引入复古像素字体 (这里使用一个通用的类似字体) */
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        :root {
+            /* 设定一些街机风格的颜色变量 */
+            --arcade-red: #cc3333;
+            --arcade-yellow: #ffcc00;
+            --arcade-dark: #222;
+            --arcade-screen: #000;
+        }
+
+        body {
+            background-color: var(--arcade-dark);
+            color: var(--arcade-yellow);
+            font-family: 'VT323', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            /* 保证占据整个视口高度 */
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            color: var(--arcade-red);
+            text-shadow: 2px 2px var(--arcade-dark);
+            font-size: 3em;
+            margin-bottom: 0.5em;
+            letter-spacing: 5px;
+        }
+
+        /* 街机屏幕容器 */
+        .arcade-cabinet {
+            border: 15px solid var(--arcade-red);
+            box-shadow: 0 0 50px rgba(255, 204, 0, 0.5), 0 0 20px var(--arcade-dark) inset;
+            background-color: #000;
+            /* 屏幕背景 */
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: inline-block;
+            /* 适应内容大小 */
+        }
+
+        /* 原始 canvas (用于 off-screen 渲染) */
+        #rayTracingCanvas {
+            display: none;
+            /* 隐藏原始 canvas */
+        }
+
+        /* 用于显示缩放后图像的 canvas */
+        #displayCanvas {
+            image-rendering: pixelated;
+            /* 关键：保持像素锐利，不模糊 */
+            image-rendering: crisp-edges;
+            width: min(70vh, 70vw);
+            height: min(70vh, 70vw);
+            background-color: var(--arcade-screen);
+            border: 2px solid var(--arcade-yellow);
+        }
+
+        /* 按键提示区 */
+        .controls {
+            background-color: var(--arcade-dark);
+            border: 3px dashed var(--arcade-yellow);
+            padding: 7px 12px;
+            text-align: center;
+            font-size: 1.5em;
+            border-radius: 5px;
+            line-height: 1.6;
+        }
+
+        .controls strong {
+            color: var(--arcade-red);
+            margin-right: 5px;
+        }
+
+        div.container {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+            column-gap: 32px;
+        }
+    </style>
 </head>
-<script type="module">
-    import init, { RayTracing, Light, Sphere, Vec3, Action } from './pkg/render3d.js';
-
-    const HEIGHT = 200;
-    const WIDTH = 200;
-    const canvas = document.getElementById("rayTracingCanvas");
-    const ctx = canvas.getContext('2d');
-    canvas.width = WIDTH;
-    canvas.height = HEIGHT;
-    let rt = null;
-
-    async function redraw() {
-        let frame = rt.render_to_web_color();
-        ctx.putImageData(new ImageData(new Uint8ClampedArray(frame.buffer, frame.byteOffset, frame.byteLength), WIDTH, HEIGHT), 0, 0);
-        requestAnimationFrame(redraw);
-    }
-
-    function mapKey(code) {
-        let action = null;
-
-        switch (code) {
-            // --- 移动 (wasd) ---
-            case 'w':
-            case 'W':
-                action = Action.CameraMoveForward;
-                break;
-            case 's':
-            case 'S':
-                action = Action.CameraMoveBackward;
-                break;
-            case 'a':
-            case 'A':
-                action = Action.CameraMoveLeft;
-                break;
-            case 'd':
-            case 'D':
-                action = Action.CameraMoveRight;
-                break;
-
-            // --- 上下移动 (Space & LeftCtrl) ---
-            case ' ': // Space 上升
-                action = Action.CameraMoveUp;
-                break;
-            case 'Control': // LeftCtrl 下降
-            case 'ControlLeft':
-            case 'ControlRight':
-                action = Action.CameraMoveDown;
-                break;
-
-            // --- 转向 (hjkl - vim-like) ---
-            case 'h': // 左转 (水平逆时针)
-            case 'H':
-                action = Action.CameraRotationCCW;
-                break;
-            case 'l': // 右转 (水平顺时针)
-            case 'L':
-                action = Action.CameraRotationCW;
-                break;
-            case 'k': // 抬头 (向上转)
-            case 'K':
-                action = Action.CameraRotationUp;
-                break;
-            case 'j': // 低头 (向下转)
-            case 'J':
-                action = Action.CameraRotationDown;
-                break;
-
-            default:
-                // 其他按键不做处理
-                break;
-        }
-        return action;
-    }
-
-    function onKeyDown(evt) {
-        let action = mapKey(evt.key);
-        if (action !== null && rt !== null) {
-            evt.preventDefault();
-            rt.trigger_action(action);
-        }
-    }
-
-    function onKeyUp(evt) {
-        let action = mapKey(evt.key);
-        if (action !== null && rt !== null) {
-            evt.preventDefault();
-            rt.withdraw_action(action);
-        }
-    }
-
-    (async () => {
-        console.log("Loading wasm...");
-        await init();
-        rt = RayTracing.new(WIDTH, HEIGHT, 42);
-        rt.set_withdraw_actions_on_render(false);
-        rt.move_camera_to(Vec3.new(0, 0, 3));
-        rt.rotate_camera_to(Vec3.new(1, 0, -2));
-        for (var i = 0; i < 3; ++i) {
-            rt.put_sphere(Sphere.new(Vec3.new(i, 0, 1), 1));
-        }
-        rt.put_light(Light.new(Vec3.new(0, 5, 4), 1));
-        rt.put_light(Light.new(Vec3.new(0, -5, 4), 0.5));
-        document.addEventListener("keydown", onKeyDown)
-        document.addEventListener("keyup", onKeyUp)
-        redraw();
-    })();
-</script>
 
 <body>
     <h1>Render 3D - Ray Tracing</h1>
-    <canvas id="rayTracingCanvas"></canvas>
+    <div class="container">
+        <input type="text" id="virtualInput" style="position: absolute; opacity: 0; pointer-events: none; top: -100px;">
+
+        <div class="arcade-cabinet">
+            <canvas id="rayTracingCanvas"></canvas>
+            <canvas id="displayCanvas"></canvas>
+        </div>
+
+        <div class="controls">
+            <h2>🕹️ 控制台指南</h2>
+            <p>
+                <strong>WASD:</strong><br> 前后左右移动<br>
+                <strong>HLKJ:</strong><br> 左右转 / 抬低头<br>
+                <strong>空格键 / Shift:</strong><br> 上升 / 下降<br>
+            </p>
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { RayTracing, Light, Sphere, Vec3, Action } from './pkg/render3d.js';
+
+        const RENDER_WIDTH = 200;
+        const RENDER_HEIGHT = 200;
+
+        // 原始渲染画布 (用于获取数据，但不显示)
+        const renderCanvas = document.getElementById("rayTracingCanvas");
+        const renderCtx = renderCanvas.getContext('2d');
+        renderCanvas.width = RENDER_WIDTH;
+        renderCanvas.height = RENDER_HEIGHT;
+
+        // 显示画布 (用于缩放并显示最终图像)
+        const displayCanvas = document.getElementById("displayCanvas");
+        const displayCtx = displayCanvas.getContext('2d');
+
+        let rt = null;
+
+        function onCanvasClick(event) {
+            event.preventDefault();
+            // 强制将焦点设置到隐藏的输入框
+            virtualInput.focus();
+        }
+
+        // --- 图像后处理和显示 ---
+        function redraw() {
+            if (!rt) return;
+
+            // 1. 从 WASM 模块获取 200x200 像素数据
+            let frame = rt.render_to_web_color();
+
+            // 2. 将数据放入原始 canvas (实际上不需要，但为了方便ImageData创建)
+            const imageData = new ImageData(new Uint8ClampedArray(frame.buffer, frame.byteOffset, frame.byteLength), RENDER_WIDTH, RENDER_HEIGHT);
+            renderCtx.putImageData(imageData, 0, 0);
+
+            // 3. 将原始 canvas 的内容绘制到显示 canvas 并放大
+            // 使用 drawImage 进行硬件加速的整数倍缩放，确保 image-rendering: pixelated 生效
+            displayCtx.drawImage(
+                renderCanvas,
+                0, 0, RENDER_WIDTH, RENDER_HEIGHT, // 源矩形 (原始 200x200)
+                0, 0, displayCanvas.width, displayCanvas.height // 目标矩形 (缩放后的 800x800)
+            );
+
+            // 循环调用
+            requestAnimationFrame(redraw);
+        }
+
+        // --- 键盘事件处理 (保持不变) ---
+        function mapKey(code) {
+            let action = null;
+            switch (code) {
+                // ... (wasd, space, ctrl, hjkl 逻辑不变) ...
+                case 'w': case 'W': case 'ArrowUp': action = Action.CameraMoveForward; break;
+                case 's': case 'S': case 'ArrowDown': action = Action.CameraMoveBackward; break;
+                case 'a': case 'A': case 'ArrowLeft': action = Action.CameraMoveLeft; break;
+                case 'd': case 'D': case 'ArrowRight': action = Action.CameraMoveRight; break;
+                case ' ': action = Action.CameraMoveUp; break;
+                case 'Shift': case 'ShiftLeft': case 'ShiftRight':
+                case 'Control': case 'ControlLeft': case 'ControlRight':
+                    action = Action.CameraMoveDown; break;
+                case 'h': case 'H': action = Action.CameraRotationCCW; break;
+                case 'l': case 'L': action = Action.CameraRotationCW; break;
+                case 'k': case 'K': action = Action.CameraRotationUp; break;
+                case 'j': case 'J': action = Action.CameraRotationDown; break;
+                default: break;
+            }
+            return action;
+        }
+
+        function onKeyDown(evt) {
+            let action = mapKey(evt.key);
+            if (action !== null && rt !== null) {
+                evt.preventDefault();
+                rt.trigger_action(action);
+            }
+        }
+
+        function onKeyUp(evt) {
+            let action = mapKey(evt.key);
+            if (action !== null && rt !== null) {
+                evt.preventDefault();
+                rt.withdraw_action(action);
+            }
+        }
+
+        // --- 初始化 ---
+        (async () => {
+            console.log("Loading wasm...");
+            await init();
+            console.log("Wasm loaded...");
+            rt = RayTracing.new(RENDER_WIDTH, RENDER_HEIGHT, 42);
+            rt.set_withdraw_actions_on_render(false);
+            rt.move_camera_to(Vec3.new(0, 0, 3));
+            rt.rotate_camera_to(Vec3.new(1, 0, -2));
+            for (var i = 0; i < 10; ++i) {
+                rt.put_sphere(Sphere.new(Vec3.new(i * 3, 0, 1), 1));
+            }
+            rt.put_light(Light.new(Vec3.new(0, 5, 4), 1));
+            rt.put_light(Light.new(Vec3.new(0, -5, 4), 0.5));
+            document.addEventListener("keydown", onKeyDown)
+            document.addEventListener("keyup", onKeyUp)
+            displayCanvas.addEventListener("click", onCanvasClick);
+
+            // 开始渲染循环
+            redraw();
+        })();
+    </script>
+
 </body>
 
 </html>
