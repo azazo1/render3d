@@ -9,7 +9,6 @@ use axum::{
     },
 };
 use clap::Parser;
-use mime_guess::Mime;
 use tokio::io::BufReader;
 use tokio::{fs, net::TcpListener};
 use tokio_util::io::ReaderStream;
@@ -26,12 +25,6 @@ struct MArgs {
 fn not_found_response() -> Response<Body> {
     Response::builder().status(404).body(Body::empty()).unwrap()
 }
-
-// const fn map_mime(ext: &str) -> Option<&str> {
-//     match ext {
-//         _ => None,
-//     }
-// }
 
 async fn files(req: Request<Body>) -> Response<Body> {
     let file_path = Path::new(ASSETS_DIR).join(req.uri().path().trim_start_matches('/'));
