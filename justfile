@@ -4,9 +4,9 @@ ray_tracing:
     cargo run --bin ray_tracing --release
 
 alias s := wasm_server
-wasm_server:
+wasm_server: build
     @if command -v simple-http-server &>/dev/null; \
-    then cd www && simple-http-server; \
+    then simple-http-server -- ./www; \
     else cargo run --bin wasm_server --features=wasm_server; \
     fi
 
