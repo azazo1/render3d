@@ -26,6 +26,9 @@ tracing = {version = "0.1.41", optional = true}
 tracing-subscriber = {version = "0.3.20", optional = true}
 wasm-bindgen = "0.2.105"
 
+[dev-dependencies]
+criterion = "0.7.0"
+
 [[bin]]
 name = "ray_tracing"
 path = "src/bin/ray_tracing.rs"
@@ -44,3 +47,7 @@ wasm_server = [
   "dep:tracing-subscriber",
   "dep:tokio-util",
 ]
+
+[[bench]]
+harness = false
+name = "ray_tracing"

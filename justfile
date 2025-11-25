@@ -14,3 +14,9 @@ alias b := build
 build profile='release':
     cargo build --profile {{profile}}
     wasm-pack build --target web
+
+bench:
+    @if command -v samply &>/dev/null; \
+    then samply record cargo bench; \
+    else cargo bench; \
+    fi
