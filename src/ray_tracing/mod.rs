@@ -323,14 +323,27 @@ impl RayTracing {
         }
 
         // 和所有球体进行相交检测.
-        if let Some(mdi_candidate) = self
-            .spheres
-            .iter()
-            .filter_map(|sphere| sphere.intersect(origin, direction))
-            .min_by(|ia, ib| ia.distance.partial_cmp(&ib.distance).unwrap())
-            && mdi_candidate.distance < min_distance_intersect.distance
-        {
-            min_distance_intersect = mdi_candidate;
+        // if let Some(mdi_candidate) = self
+        //     .spheres
+        //     .iter()
+        //     .filter_map(|sphere| sphere.intersect(origin, direction))
+        //     .min_by(|ia, ib| ia.distance.partial_cmp(&ib.distance).unwrap())
+        //     && mdi_candidate.distance < min_distance_intersect.distance
+        // {
+        //     min_distance_intersect = mdi_candidate;
+        // }
+        // --- 上面是迭代器的写法, 下面是直接 for 的写法, 我发现下面更快一点. ---
+        for sphere in &self.spheres {
+            if let Some(intersect) = sphere.intersect(origin, direction)
+                && matches!(
+                    intersect
+                        .distance
+                        .partial_cmp(&min_distance_intersect.distance),
+                    Some(std::cmp::Ordering::Less)
+                )
+            {
+                min_distance_intersect = intersect;
+            }
         }
 
         min_distance_intersect
