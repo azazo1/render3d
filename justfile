@@ -1,6 +1,6 @@
 default: ray_tracing
 
-ray_tracing features='rayon':
+ray_tracing features='rayon,simd':
     cargo run --bin ray_tracing --release --features={{features}}
 
 alias s := wasm_server
@@ -13,7 +13,7 @@ wasm_server: build
 alias b := build
 build profile='release':
     cargo build --profile {{profile}}
-    wasm-pack build --target web
+    wasm-pack build --target web --features=simd
 
 bench samply='on' features='simd,rayon':
     @if [ '{{samply}}' = 'on' ] && command -v samply &>/dev/null; \
