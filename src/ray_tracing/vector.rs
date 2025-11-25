@@ -18,6 +18,14 @@ impl Mul<f32> for Vec3 {
     type Output = Vec3;
 
     fn mul(self, rhs: f32) -> Self::Output {
+        #[cfg(feature = "simd")]
+        {
+            #[allow(clippy::suspicious_arithmetic_impl)]
+            let [x, y, z, _] =
+                (f32x4::new([self.x, self.y, self.z, 0.]) * f32x4::splat(rhs)).to_array();
+            Self { x, y, z }
+        }
+        #[cfg(not(feature = "simd"))]
         Self {
             x: self.x * rhs,
             y: self.y * rhs,
@@ -31,6 +39,14 @@ impl Div<f32> for Vec3 {
     type Output = Vec3;
 
     fn div(self, rhs: f32) -> Self::Output {
+        #[cfg(feature = "simd")]
+        {
+            #[allow(clippy::suspicious_arithmetic_impl)]
+            let [x, y, z, _] =
+                (f32x4::new([self.x, self.y, self.z, 0.]) * f32x4::splat(rhs).recip()).to_array();
+            Self { x, y, z }
+        }
+        #[cfg(not(feature = "simd"))]
         Self {
             x: self.x / rhs,
             y: self.y / rhs,
@@ -66,12 +82,10 @@ impl Add for Vec3 {
             Self::Output { x, y, z }
         }
         #[cfg(not(feature = "simd"))]
-        {
-            Self {
-                x: self.x + rhs.x,
-                y: self.y + rhs.y,
-                z: self.z + rhs.z,
-            }
+        Self {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            z: self.z + rhs.z,
         }
     }
 }
@@ -90,12 +104,10 @@ impl Sub for Vec3 {
             Self::Output { x, y, z }
         }
         #[cfg(not(feature = "simd"))]
-        {
-            Self {
-                x: self.x - rhs.x,
-                y: self.y - rhs.y,
-                z: self.z - rhs.z,
-            }
+        Self {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+            z: self.z - rhs.z,
         }
     }
 }
@@ -158,12 +170,10 @@ impl Vec3 {
             Self { x, y, z }
         }
         #[cfg(not(feature = "simd"))]
-        {
-            Self {
-                x: self.y * rhs.z - self.z * rhs.y,
-                y: self.z * rhs.x - self.x * rhs.z,
-                z: self.x * rhs.y - self.y * rhs.x,
-            }
+        Self {
+            x: self.y * rhs.z - self.z * rhs.y,
+            y: self.z * rhs.x - self.x * rhs.z,
+            z: self.x * rhs.y - self.y * rhs.x,
         }
     }
 
@@ -177,7 +187,7 @@ impl Vec3 {
     /// 是否是标准化的向量.
     #[must_use]
     pub fn is_normalized(self) -> bool {
-        self.magnitude().sub(1.0).abs() < Self::TOLERANCE
+        (self.x * self.x + self.y * self.y + self.z * self.z - 1.).abs() < Self::TOLERANCE
     }
 
     /// 标准化, 不做非 0 模长的保证.
