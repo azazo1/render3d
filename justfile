@@ -1,7 +1,7 @@
 default: ray_tracing
 
-ray_tracing:
-    cargo run --bin ray_tracing --release
+ray_tracing features='rayon':
+    cargo run --bin ray_tracing --release --features={{features}}
 
 alias s := wasm_server
 wasm_server: build

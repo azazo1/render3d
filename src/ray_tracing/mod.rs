@@ -1,5 +1,6 @@
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
+#[cfg(feature = "rayon")]
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use std::f32;
 use std::ops::{Div, Rem};
@@ -22,7 +23,7 @@ fn main() {
 #[inline]
 #[must_use]
 pub const fn rgb(r: u8, g: u8, b: u8) -> u32 {
-    0xFF000000 | ((r as u32) << 16) + ((g as u32) << 8) + b as u32
+    0xFF000000 | (((r as u32) << 16) + ((g as u32) << 8) + b as u32)
 }
 
 #[inline]
@@ -422,6 +423,36 @@ impl RayTracing {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
+    fn render_pixel(
+        &self,
+        i: usize,
+        right: Vec3,
+        down: Vec3,
+        top_left: Vec3,
+        interval_x: f32,
+        interval_y: f32,
+        rng: &mut SmallRng,
+    ) -> u32 {
+        let x = i % self.width;
+        let y = i / self.width;
+        let rx = x as f32 / self.width as f32;
+        let ry = y as f32 / self.height as f32;
+        let mut pixel_color = Vec3::ZERO;
+        for _ in 0..Self::AA_SAMPLES {
+            // todo 不知道这个景深随机值取什么范围比较好.
+            let dof_src =
+                right * rng.random_range(0.0..0.001) + down * rng.random_range(0.0..0.001);
+            let direction = top_left - dof_src
+                + right * (rx * Self::FOCAL_SIZE + rng.random_range(-interval_x..interval_x))
+                + down * (ry * Self::FOCAL_SIZE + rng.random_range(-interval_y..interval_y));
+            let direction = direction.normalize();
+            pixel_color = pixel_color + self.radiance(self.camera_pos + dof_src, direction, 0);
+        }
+        pixel_color = pixel_color / Self::AA_SAMPLES.into();
+        rgbf(pixel_color.x, pixel_color.y, pixel_color.z)
+    }
+
     /// 渲染画面, 当没有任何操作 ([`Action`](action::Action)) 的时候, 画面没变, 返回 None.
     pub fn render(&mut self) -> Option<Vec<u32>> {
         if !self.am.has_actions() {
@@ -444,45 +475,40 @@ impl RayTracing {
         let interval_x = 0.5 / self.width as f32;
         let interval_y = 0.5 / self.height as f32;
 
-        Some(
-            (0..self.height * self.width)
-                .into_par_iter()
-                .chunks(1000)
-                .map_init(
-                    || self.rng.clone(),
-                    |rng, chunk| {
-                        chunk
-                            .into_iter()
-                            .map(|i| {
-                                let x = i % self.width;
-                                let y = i / self.width;
-                                let rx = x as f32 / self.width as f32;
-                                let ry = y as f32 / self.height as f32;
-                                let mut pixel_color = Vec3::ZERO;
-                                for _ in 0..Self::AA_SAMPLES {
-                                    // todo 不知道这个景深随机值取什么范围比较好.
-                                    let dof_src = right * rng.random_range(0.0..0.001)
-                                        + down * rng.random_range(0.0..0.001);
-                                    let direction = top_left - dof_src
-                                        + right
-                                            * (rx * Self::FOCAL_SIZE
-                                                + rng.random_range(-interval_x..interval_x))
-                                        + down
-                                            * (ry * Self::FOCAL_SIZE
-                                                + rng.random_range(-interval_y..interval_y));
-                                    let direction = direction.normalize();
-                                    pixel_color = pixel_color
-                                        + self.radiance(self.camera_pos + dof_src, direction, 0);
-                                }
-                                pixel_color = pixel_color / Self::AA_SAMPLES.into();
-                                rgbf(pixel_color.x, pixel_color.y, pixel_color.z)
-                            })
-                            .collect::<Vec<_>>()
-                    },
-                )
-                .flatten()
-                .collect(),
-        )
+        #[cfg(feature = "rayon")]
+        {
+            Some(
+                (0..self.height * self.width)
+                    .into_par_iter()
+                    .chunks(1000)
+                    .map_init(
+                        || self.rng.clone(),
+                        |rng, chunk| {
+                            chunk
+                                .into_iter()
+                                .map(|i| {
+                                    self.render_pixel(
+                                        i, right, down, top_left, interval_x, interval_y, rng,
+                                    )
+                                })
+                                .collect::<Vec<_>>()
+                        },
+                    )
+                    .flatten()
+                    .collect(),
+            )
+        }
+        #[cfg(not(feature = "rayon"))]
+        {
+            let rng = &mut self.rng.clone();
+            Some(
+                (0..self.height * self.width)
+                    .map(|i| {
+                        self.render_pixel(i, right, down, top_left, interval_x, interval_y, rng)
+                    })
+                    .collect(),
+            )
+        }
     }
 
     #[cfg(target_arch = "wasm32")]
