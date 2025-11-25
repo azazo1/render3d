@@ -323,20 +323,11 @@ impl RayTracing {
         }
 
         // 和所有球体进行相交检测.
-        if let Some(Some(mdi_candidate)) = self
+        if let Some(mdi_candidate) = self
             .spheres
-            .iter() // 可能在这里使用 par_iter 进行并行化.
-            .map(|sphere| sphere.intersect(origin, direction))
-            .reduce(|mdi, nxt| match (mdi, nxt) {
-                (Some(mdi), Some(nxt)) => Some(if nxt.distance < mdi.distance {
-                    nxt
-                } else {
-                    mdi
-                }),
-                (Some(mdi), None) => Some(mdi),
-                (None, Some(nxt)) => Some(nxt),
-                (None, None) => None,
-            })
+            .iter()
+            .filter_map(|sphere| sphere.intersect(origin, direction))
+            .min_by(|ia, ib| ia.distance.partial_cmp(&ib.distance).unwrap())
             && mdi_candidate.distance < min_distance_intersect.distance
         {
             min_distance_intersect = mdi_candidate;
