@@ -25,6 +25,7 @@ tokio-util = {version = "0.7.17", features = ["io"], optional = true}
 tracing = {version = "0.1.41", optional = true}
 tracing-subscriber = {version = "0.3.20", optional = true}
 wasm-bindgen = "0.2.105"
+wide = {version = "0.8.3", optional = true}
 
 [dev-dependencies]
 criterion = "0.7.0"
@@ -40,6 +41,7 @@ required-features = ["wasm_server"]
 
 [features]
 rayon = ["dep:rayon"]
+simd = ["dep:wide"]
 wasm_server = [
   "dep:axum",
   "dep:tokio",

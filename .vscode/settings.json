@@ -1,7 +1,8 @@
 {
     "rust-analyzer.cargo.features": [
         "wasm_server",
-        "rayon"
+        "rayon",
+        "simd"
     ],
     // "rust-analyzer.cargo.target": "wasm32-unknown-unknown"
 }

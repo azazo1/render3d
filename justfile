@@ -15,8 +15,8 @@ build profile='release':
     cargo build --profile {{profile}}
     wasm-pack build --target web
 
-bench samply='on':
+bench samply='on' features='simd,rayon':
     @if [ '{{samply}}' = 'on' ] && command -v samply &>/dev/null; \
-    then samply record cargo bench; \
-    else cargo bench; \
+    then samply record cargo bench --featuers{{features}}; \
+    else cargo bench --features={{features}}; \
     fi

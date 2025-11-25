@@ -1,6 +1,8 @@
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use wasm_bindgen::prelude::wasm_bindgen;
+#[cfg(feature = "simd")]
+use wide::{f32x4, f32x8};
 
 /// 右手坐标系, z 轴向上.
 #[wasm_bindgen]
@@ -55,10 +57,21 @@ impl Add for Vec3 {
     type Output = Vec3;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Self::Output {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
-            z: self.z + rhs.z,
+        #[cfg(feature = "simd")]
+        {
+            let self_simd = f32x4::new([self.x, self.y, self.z, 0.]);
+            let rhs_simd = f32x4::new([rhs.x, rhs.y, rhs.z, 0.]);
+            let rst = self_simd + rhs_simd;
+            let [x, y, z, _] = rst.to_array();
+            Self::Output { x, y, z }
+        }
+        #[cfg(not(feature = "simd"))]
+        {
+            Self {
+                x: self.x + rhs.x,
+                y: self.y + rhs.y,
+                z: self.z + rhs.z,
+            }
         }
     }
 }
@@ -68,10 +81,21 @@ impl Sub for Vec3 {
     type Output = Vec3;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Self::Output {
-            x: self.x - rhs.x,
-            y: self.y - rhs.y,
-            z: self.z - rhs.z,
+        #[cfg(feature = "simd")]
+        {
+            let self_simd = f32x4::new([self.x, self.y, self.z, 0.]);
+            let rhs_simd = f32x4::new([rhs.x, rhs.y, rhs.z, 0.]);
+            let rst = self_simd - rhs_simd;
+            let [x, y, z, _] = rst.to_array();
+            Self::Output { x, y, z }
+        }
+        #[cfg(not(feature = "simd"))]
+        {
+            Self {
+                x: self.x - rhs.x,
+                y: self.y - rhs.y,
+                z: self.z - rhs.z,
+            }
         }
     }
 }
@@ -116,22 +140,37 @@ impl Vec3 {
     /// 向量点乘
     #[must_use]
     pub fn dot(self, rhs: Self) -> f32 {
+        // 这里的 wide simd 好像没有明显的优化.
         self.x * rhs.x + self.y * rhs.y + self.z * rhs.z
     }
 
     /// 向量叉乘
     #[must_use]
     pub fn cross(self, rhs: Self) -> Self {
-        Self {
-            x: self.y * rhs.z - self.z * rhs.y,
-            y: self.z * rhs.x - self.x * rhs.z,
-            z: self.x * rhs.y - self.y * rhs.x,
+        #[cfg(feature = "simd")]
+        {
+            let self_simd = f32x8::new([self.y, self.z, self.x, self.z, self.x, self.y, 0., 0.]);
+            let rhs_simd = f32x8::new([rhs.z, rhs.x, rhs.y, rhs.y, rhs.z, rhs.x, 0., 0.]);
+            let rst = self_simd * rhs_simd;
+            let [x1, y1, z1, x2, y2, z2, _, _] = rst.to_array();
+            let rst = f32x4::new([x1, y1, z1, 0.]) - f32x4::new([x2, y2, z2, 0.]);
+            let [x, y, z, _] = rst.to_array();
+            Self { x, y, z }
+        }
+        #[cfg(not(feature = "simd"))]
+        {
+            Self {
+                x: self.y * rhs.z - self.z * rhs.y,
+                y: self.z * rhs.x - self.x * rhs.z,
+                z: self.x * rhs.y - self.y * rhs.x,
+            }
         }
     }
 
     /// 获取向量的模长
     #[must_use]
     pub fn magnitude(self) -> f32 {
+        // 这里的 wide simd 好像没有明显的优化.
         (self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
     }
 
@@ -144,11 +183,25 @@ impl Vec3 {
     /// 标准化, 不做非 0 模长的保证.
     #[must_use]
     pub fn normalize(self) -> Self {
-        let mag = self.magnitude();
-        Self {
-            x: self.x / mag,
-            y: self.y / mag,
-            z: self.z / mag,
+        #[cfg(feature = "simd")]
+        {
+            let self_simd1 = f32x4::new([self.x, self.y, self.z, 0.]);
+            let self_simd2 = f32x4::new([self.y, self.z, self.x, 0.]);
+            let self_simd3 = f32x4::new([self.z, self.x, self.y, 0.]);
+            let [x, y, z, _] = (self_simd1
+                * (self_simd1 * self_simd1 + self_simd2 * self_simd2 + self_simd3 * self_simd3)
+                    .recip_sqrt())
+            .to_array();
+            Self { x, y, z }
+        }
+        #[cfg(not(feature = "simd"))]
+        {
+            let mag = self.magnitude();
+            Self {
+                x: self.x / mag,
+                y: self.y / mag,
+                z: self.z / mag,
+            }
         }
     }
 
